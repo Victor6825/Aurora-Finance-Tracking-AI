@@ -49,11 +49,6 @@ jobs:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-    env:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -75,18 +70,31 @@ jobs:
         run: npm install -g netlify-cli
 
       - name: Deploy to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         run: netlify deploy --dir=dist --prod --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN"
 
       - name: Notify Slack (success)
-        if: success() && env.SLACK_WEBHOOK_URL != ''
+        if: success()
         run: |
+          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "No Slack webhook configured, skipping notification."
+            exit 0
+          fi
+
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\":\"Deployment succeeded for $GITHUB_REPOSITORY ($GITHUB_REF)\"}" \
-            "$SLACK_WEBHOOK_URL"
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
 
       - name: Notify Slack (failure)
-        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        if: failure()
         run: |
+          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "No Slack webhook configured, skipping notification."
+            exit 0
+          fi
+
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\":\"Deployment failed for $GITHUB_REPOSITORY ($GITHUB_REF). Check Actions logs.\"}" \
-            "$SLACK_WEBHOOK_URL"
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
